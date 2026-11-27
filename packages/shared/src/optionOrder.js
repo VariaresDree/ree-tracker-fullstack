@@ -143,8 +143,20 @@ function battleOrderKey(battleId, userId, config) {
     return config && config.sameOrder ? String(battleId) : `${battleId}:${userId || ''}`;
 }
 
+/**
+ * The order a battle player's questions are shown in: the battle's own order
+ * when it keeps it (config.fixedOrder: a battle on an assigned exam, numbered
+ * as its reviewer made it), else shuffled by battleOrderKey. The battle room
+ * and the sitting review both use it.
+ */
+function battleQuestionOrder(questions, battleId, userId, config) {
+    const list = Array.isArray(questions) ? questions : [];
+    return config && config.fixedOrder ? list : shuffleWithKey(list, battleOrderKey(battleId, userId, config));
+}
+
 module.exports = {
     battleOrderKey,
+    battleQuestionOrder,
     seededRng,
     optionKey,
     optionOrder,

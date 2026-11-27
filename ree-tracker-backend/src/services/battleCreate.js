@@ -78,8 +78,9 @@ async function createBattle({ hostId, battleId, config, timeLimitSecs, rematchOf
 }
 
 /**
- * A battle on an exam the admin published: its questions (in its order; each
- * player still gets their own unless the host chose one order) and its time,
+ * A battle on an exam the admin published: its questions, in the exam's own
+ * numbered order for every player (fixedOrder; each still gets their own order
+ * of choices unless the host chose one order), and its time,
  * whatever the client sent. A rematch is the same exam again. Null when the
  * exam isn't published or has no questions left.
  */
@@ -99,6 +100,7 @@ async function createAssignedBattle({ hostId, battleId, config, rematchOfId }) {
                 subject: exam.subject,
                 isPrcStandard: false,
                 ...(config.sameOrder ? { sameOrder: true } : {}),
+                fixedOrder: true,
                 count: pool.length,
                 optionOrder: OPTION_ORDER_VERSION,
             },

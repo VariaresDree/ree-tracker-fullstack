@@ -59,7 +59,7 @@ describe('createBattle on an assigned exam', () => {
         const battle = await createBattle({ hostId: 'ana', battleId: 'ABC123', config: { mode: 'assigned', assignedExamId: 'x1', count: 99, subject: 'Math' }, timeLimitSecs: 60 });
         expect(battle.questions.map((q) => q.id)).toEqual(EXAM.questionIds);
         expect(battle.timeLimitSecs).toBe(1800);
-        expect(battle.config).toEqual({ mode: 'assigned', assignedExamId: 'x1', title: 'EE prelim', subject: 'EE', isPrcStandard: false, count: 5, optionOrder: expect.any(String) });
+        expect(battle.config).toEqual({ mode: 'assigned', assignedExamId: 'x1', title: 'EE prelim', subject: 'EE', isPrcStandard: false, fixedOrder: true, count: 5, optionOrder: expect.any(String) });
     });
 
     it('keeps the host’s one-order choice', async () => {

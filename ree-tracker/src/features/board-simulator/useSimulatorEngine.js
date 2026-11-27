@@ -19,7 +19,7 @@ import { reportQuestion } from '../../services/reportQuestion';
 import {
   deriveVerdict, gradeBoardExam, toDisplaySubject, apportionItems,
   PRC_EXAM_FORMAT, prcSectionSeconds, boardPaceSeconds, TIME_SINK_MS,
-  newSittingKey, shuffleWithKey, OPTION_ORDER_VERSION, battleOrderKey,
+  newSittingKey, OPTION_ORDER_VERSION, battleOrderKey, battleQuestionOrder,
 } from '@ree/shared';
 import { presentOptions } from '../quiz/presentOptions';
 import { setupConfig } from './profiles';
@@ -292,8 +292,9 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       }
       if (pool.length === 0) throw new Error("No questions match these settings yet.");
       
-      // 🚀 THE FIX: Final global shuffle destroys predictability in Full Blended Mode!
-      pool = shuffleArray(pool);
+      // Shuffled, so a drawn mock is never predictable; an assigned exam
+      // keeps the numbered order its reviewer made it in.
+      if (config.retake?.kind !== 'assigned') pool = shuffleArray(pool);
 
       // The choices are put in this sitting's order at start (presentOptions).
       return { pool, timeLimitSecs };
@@ -837,9 +838,10 @@ export const useSimulatorEngine = (currentUser, isOnline) => {
       // Each player's own order of questions and choices, the same on every
       // open (a rejoin finds them where they were) and in the battle's review:
       // keyed by the battle and the player, the id of their sitting. Or one
-      // order for everyone, when the host chose it (battleOrderKey).
+      // order for everyone, when the host chose it (battleOrderKey), or the
+      // assigned exam's own numbered order (battleQuestionOrder).
       const sittingKey = battleOrderKey(battleId, currentUser?.uid, battle.config);
-      const pool = shuffleWithKey(battle.questions || [], sittingKey).map((q) => presentOptions(q, sittingKey));
+      const pool = battleQuestionOrder(battle.questions, battleId, currentUser?.uid, battle.config).map((q) => presentOptions(q, sittingKey));
 
       if (pool.length === 0) throw new Error('No questions in battle');
 

@@ -28,7 +28,7 @@
 'use strict';
 
 const prisma = require('../config/db');
-const { battleOrderKey, normalizeSubject, optionKey, optionOrder, shuffleWithKey, OPTION_ORDER_VERSION } = require('@ree/shared');
+const { battleOrderKey, battleQuestionOrder, normalizeSubject, optionKey, optionOrder, OPTION_ORDER_VERSION } = require('@ree/shared');
 const { battleTiming } = require('../utils/battleLogic');
 const battleLifecycle = require('./battleLifecycle');
 
@@ -195,9 +195,9 @@ async function buildSittingReview({ userId, sessionId, now = Date.now() }) {
         });
         // A battle shown in the seeded order gave each player their own order
         // of questions too, keyed the same way (or one order for everyone,
-        // when the host chose it).
+        // when the host chose it, or the exam's own order: battleQuestionOrder).
         const battleQuestions = Array.isArray(battle?.questions)
-            ? (shownSeeded ? shuffleWithKey(battle.questions, orderKey) : battle.questions)
+            ? (shownSeeded ? battleQuestionOrder(battle.questions, String(session.id).split(':')[0], userId, configOf(battle)) : battle.questions)
             : null;
         rows = orderReviewRows(attempts, {
             fullBoard: cfg.kind === 'full-board',

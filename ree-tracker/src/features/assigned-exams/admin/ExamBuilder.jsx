@@ -1,8 +1,8 @@
 // Admin › Assigned exams › New exam (or Edit): pick questions from the bank,
 // name the exam, set its time, save it as a draft or publish it for every
 // learner. Two panes side by side on wide screens; on a phone one at a time,
-// switched by "Bank" / "Your exam". Each learner gets their own order of
-// questions and choices, so there is no reordering here.
+// switched by "Bank" / "Your exam". Learners get the questions in the order
+// numbered here (move one up or down), each with their own order of choices.
 import { useEffect, useId, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { normalizeSubject, toDisplaySubject } from '@ree/shared';
@@ -11,7 +11,7 @@ import {
   Badge, Button, Card, EmptyState, FormField, Input, SectionHeader, SegmentedControl, Select, Skeleton,
   StatusPill, StickyToolbar, Textarea,
 } from '../../../components/ui';
-import { Check, ChevronLeft, Shuffle, Trash2 } from '../../../components/ui/icons';
+import { Check, ChevronDown, ChevronLeft, ChevronUp, Shuffle, Trash2 } from '../../../components/ui/icons';
 import LatexRenderer from '../../../components/LatexRenderer';
 import ExplanationBody from '../../quiz/ExplanationBody';
 import { fetchPaginatedQuestions, fetchVaultQuestions } from '../../../services/dbQueries';
@@ -89,7 +89,7 @@ function BankRow({ q, picked, full, onToggle }) {
   );
 }
 
-function PickedRow({ q, index, onRemove }) {
+function PickedRow({ q, index, last, onRemove, onMove }) {
   return (
     <li>
       <Card variant="inset" padding="sm" className="flex gap-3 items-start">
@@ -98,9 +98,17 @@ function PickedRow({ q, index, onRemove }) {
           <QuestionMeta q={q} />
           <div className="text-sm text-textMain leading-relaxed line-clamp-3 min-w-0 break-words"><LatexRenderer content={q.text} /></div>
         </div>
-        <Button size="sm" variant="ghost" tone="danger" onClick={() => onRemove(q)} aria-label={`Remove question ${index + 1}`}>
-          <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
-        </Button>
+        <div className="flex shrink-0 flex-col items-center gap-0.5 sm:flex-row">
+          <Button size="sm" variant="ghost" onClick={() => onMove(index, -1)} disabled={index === 0} aria-label={`Move question ${index + 1} up`}>
+            <ChevronUp size={14} strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onMove(index, 1)} disabled={last} aria-label={`Move question ${index + 1} down`}>
+            <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+          <Button size="sm" variant="ghost" tone="danger" onClick={() => onRemove(q)} aria-label={`Remove question ${index + 1}`}>
+            <Trash2 size={14} strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+        </div>
       </Card>
     </li>
   );
@@ -190,6 +198,15 @@ export default function ExamBuilder({ examId = null, onDone }) {
     prev.some((p) => p.id === q.id) ? prev.filter((p) => p.id !== q.id) : (prev.length >= MAX_ITEMS ? prev : [...prev, q])
   ));
 
+  // Swap with the neighbour above (-1) or below (+1): the numbers learners see.
+  const move = (index, by) => setPicked((prev) => {
+    const to = index + by;
+    if (to < 0 || to >= prev.length) return prev;
+    const next = [...prev];
+    [next[index], next[to]] = [next[to], next[index]];
+    return next;
+  });
+
   const [addingRandom, setAddingRandom] = useState(false);
   const [randomSize, setRandomSize] = useState(RANDOM_SIZES[0]);
   const addRandom = async () => {
@@ -255,7 +272,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
     <div className="flex flex-col gap-5">
       <SectionHeader
         title={examId ? 'Edit exam' : 'New exam'}
-        description="Pick questions from the bank. Each learner gets their own order of questions and choices; answers and explanations show after they submit."
+        description="Pick questions from the bank. Learners get them in the order numbered under Your exam (move one up or down to change it), each with their own order of choices; answers and explanations show after they submit."
         actions={(
           <Button variant="ghost" size="sm" onClick={() => onDone(null)}>
             <ChevronLeft size={16} strokeWidth={2} aria-hidden="true" /> All assigned exams
@@ -401,7 +418,7 @@ export default function ExamBuilder({ examId = null, onDone }) {
               <EmptyState compact title="No questions yet" description="Tick questions in the bank, or add some at random." />
             ) : (
               <ol className="flex flex-col gap-2">
-                {picked.map((q, i) => <PickedRow key={q.id} q={q} index={i} onRemove={toggle} />)}
+                {picked.map((q, i) => <PickedRow key={q.id} q={q} index={i} last={i === picked.length - 1} onRemove={toggle} onMove={move} />)}
               </ol>
             )}
           </section>
