@@ -247,3 +247,14 @@ describe('a battle the host set to one order for everyone (2026-11-12)', () => {
         expect(battleOrderKey('ABC123', 'uid-review', {})).toBe('ABC123:uid-review');
     });
 });
+
+describe('a battle on an assigned exam (2026-11-27)', () => {
+    it('reviews in the exam’s own numbered order', async () => {
+        const ids = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+        session = { id: 'ABC123:uid-review', mode: 'BATTLE', config: { kind: 'battle', finalizedAt: 'x' }, createdAt: new Date() };
+        attempts = [...ids].reverse().map((qid) => attempt(qid, 'EE', { itemIndex: null }));
+        battle = { id: 'ABC123', status: 'COMPLETED', config: { mode: 'assigned', fixedOrder: true, optionOrder: 'seeded-v1' }, questions: ids.map((qid) => ({ id: qid })) };
+        const body = (await get('ABC123:uid-review')).body;
+        expect(body.items.map((i) => i.questionId)).toEqual(ids);
+    });
+});

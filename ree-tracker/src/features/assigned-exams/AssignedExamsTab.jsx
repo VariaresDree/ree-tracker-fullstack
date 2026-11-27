@@ -110,7 +110,7 @@ export function StartSheet({ exam, onClose }) {
       )}
     >
       <ul className="flex flex-col gap-2 text-sm text-textMain">
-        <li className="flex gap-2"><ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5 text-muted2" /> {exam.itemCount} items, each with its own order of choices. Pass mark {PASS}%.</li>
+        <li className="flex gap-2"><ClipboardList size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5 text-muted2" /> {exam.itemCount} items, numbered as your reviewer set them. Pass mark {PASS}%.</li>
         <li className="flex gap-2"><Clock size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5 text-muted2" /> {examLength(exam.timeLimitSecs)} on the clock. When it runs out, your answers are submitted.</li>
         <li className="flex gap-2"><FileText size={16} strokeWidth={1.75} aria-hidden="true" className="shrink-0 mt-0.5 text-muted2" /> Answers and explanations show after you submit.</li>
       </ul>

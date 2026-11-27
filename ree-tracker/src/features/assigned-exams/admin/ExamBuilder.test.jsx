@@ -164,6 +164,20 @@ describe('ExamBuilder', () => {
     expect(apiRequest.mock.calls[0][2]).toMatchObject({ kind: 'problem-set' });
   });
 
+  it('numbers the questions in the order the admin sets, and saves that order', async () => {
+    render(<ExamBuilder onDone={vi.fn()} />);
+    await screen.findByText('Question b1');
+    fireEvent.change(screen.getByLabelText(/Title/), { target: { value: 'In order' } });
+    ['b1', 'b2', 'b3'].forEach(pick);
+    expect(screen.getByRole('button', { name: 'Move question 1 up' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Move question 3 down' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Move question 3 up' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move question 1 down' }));
+    fireEvent.click(within(toolbar()).getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(apiRequest).toHaveBeenCalled());
+    expect(apiRequest.mock.calls[0][2].questionIds).toEqual(['b3', 'b1', 'b2']);
+  });
+
   it('keeps the time the admin set', async () => {
     render(<ExamBuilder onDone={vi.fn()} />);
     await screen.findByText('Question b1');

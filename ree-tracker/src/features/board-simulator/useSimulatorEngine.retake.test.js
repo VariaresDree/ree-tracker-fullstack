@@ -49,6 +49,16 @@ describe('useSimulatorEngine — retake', () => {
     expect(result.current.session.diagnostics.timedOut).toBe(true);
   });
 
+  it('an assigned exam keeps its numbered order', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: 'n' + (i + 1), subject: 'EE', subtopic: 'Machines', text: 'N' + i, options: ['A', 'B'], answer: 'A' }));
+    const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
+    await act(() => result.current.startSimulation({
+      mode: 'subject', subject: 'EE', isPrcStandard: false, count: 12, source: 'retake', cognitiveFocus: 'mixed',
+      retake: { sourceSessionId: null, kind: 'assigned', assignedExamId: 'x1', title: 'Algebra test', timeLimitSecs: 600 }, retakeQuestions: many,
+    }));
+    expect(result.current.session.questions.map((q) => q.id)).toEqual(many.map((q) => q.id));
+  });
+
   it('runs the handed-over items at board pace and records position and blanks', async () => {
     const { result } = renderHook(() => useSimulatorEngine({ uid: 'u1' }, true));
     const before = Date.now();

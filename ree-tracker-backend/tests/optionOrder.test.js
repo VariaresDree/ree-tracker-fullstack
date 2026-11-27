@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 
 const {
     seededRng, optionKey, optionOrder, orderOptions, shuffleWithKey, answerPositions,
-    isClosingOption, isLetterReference, newSittingKey,
+    isClosingOption, isLetterReference, newSittingKey, battleQuestionOrder, battleOrderKey,
 } = require('@ree/shared');
 
 const FOUR = ['10 A', '20 A', '30 A', '40 A'];
@@ -91,5 +91,18 @@ describe('answerPositions', () => {
             { options: ['x', 'y', 'z', 'w'], answer: 'B' },
             { options: ['x', 'y', 'z', 'A and B'], answer: 'y' },
         ])).toEqual({ A: 2, B: 1, C: 0, D: 1, other: 1, missing: 1, fixedOrder: 1 });
+    });
+});
+
+describe('battleQuestionOrder', () => {
+    const qs = Array.from({ length: 12 }, (_, i) => ({ id: 'q' + i }));
+    it('keeps an assigned exam’s numbered order for every player', () => {
+        expect(battleQuestionOrder(qs, 'b1', 'ana', { mode: 'assigned', fixedOrder: true })).toEqual(qs);
+    });
+    it('otherwise shuffles by the player’s key, the same on every open', () => {
+        const mine = battleQuestionOrder(qs, 'b1', 'ana', {});
+        expect(mine).toEqual(shuffleWithKey(qs, battleOrderKey('b1', 'ana', {})));
+        expect(mine).not.toEqual(qs);
+        expect(battleQuestionOrder(null, 'b1', 'ana', {})).toEqual([]);
     });
 });
